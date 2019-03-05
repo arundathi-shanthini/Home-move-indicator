@@ -1,5 +1,8 @@
 import numpy as np
 import pandas as pd
+
+import sys
+
 from collections import OrderedDict
 
 import matplotlib.pyplot as plt
@@ -18,25 +21,31 @@ from plotly.offline import download_plotlyjs, plot, iplot
 import postcodes_io_api
 api  = postcodes_io_api.Api(debug_http=True)
 
+if(len(sys.argv)==1):
+    print('No area outcodes were passed!\nProgram will exit now.')
+    exit()
+area_list=sys.argv[1:]
+
 column_list=['listing_id','longitude','latitude','first_published_date','last_published_date','listing_status','property_type']
 data=[]
-for status in ['sale','rent']:
-    page_num=1
-    while 1:
-        search = zoopla.property_listings({'listing_status': status,'area': 'BN3','include_sold':'1','include_rented':'1',
-                                          'order_by':'age','ordering':'descending','page_number':page_num,'page_size':100})
-        if(page_num==1):
-            nresults=search.result_count
-            npages=np.ceil(nresults/100)
-        for result in search.listing:
-              result_dict=OrderedDict((key,result[key]) for key in column_list)
-              result_dict['outcode']='BN3'
-              result_dict['postcode']=api.get_nearest_postcodes_for_coordinates(latitude=result.latitude,longitude=result.longitude,limit=1)['result'][0]['postcode']
-              data.append(pd.DataFrame(result_dict,index=[0]))
-        if(page_num>=npages):
-            break
-        else:
-            page_num+=1
+for area in area_list:
+    for status in ['sale','rent']:
+        page_num=1
+        while 1:
+            search = zoopla.property_listings({'listing_status': status,'area': area,'include_sold':'1','include_rented':'1',
+                                              'order_by':'age','ordering':'descending','page_number':page_num,'page_size':100})
+            if(page_num==1):
+                nresults=search.result_count
+                npages=np.ceil(nresults/100)
+            for result in search.listing:
+                  result_dict=OrderedDict((key,result[key]) for key in column_list)
+                  result_dict['outcode']=area
+                  result_dict['postcode']=api.get_nearest_postcodes_for_coordinates(latitude=result.latitude,longitude=result.longitude,limit=1)['result'][0]['postcode']
+                  data.append(pd.DataFrame(result_dict,index=[0]))
+            if(page_num>=npages):
+                break
+            else:
+                page_num+=1
 data=pd.concat(data)
 col_list=['Listing ID','Longitude','Latitude','First Published Date','Last Published Date','Listing Status','Property Type','Outcode','Postcode']
 data.rename(columns=dict(zip(data.columns,col_list)),inplace=True)
@@ -44,21 +53,22 @@ data.reset_index(drop=True,inplace=True)
 
 column_list=['listing_id','listing_status']
 data2=[]
-for status in ['sale','rent']:
-    page_num=1
-    while 1:
-        search = zoopla.property_listings({'listing_status': status,'area': 'BN3',
-                                          'order_by':'age','ordering':'descending','page_number':page_num,'page_size':100})
-        if(page_num==1):
-            nresults=search.result_count
-            npages=np.ceil(nresults/100)
-        for result in search.listing:
-            result_dict=OrderedDict((key,result[key]) for key in column_list)
-            data2.append(pd.DataFrame(result_dict,index=[0]))
-        if(page_num>=npages):
-            break
-        else:
-            page_num+=1
+for area in area_list:
+    for status in ['sale','rent']:
+        page_num=1
+        while 1:
+            search = zoopla.property_listings({'listing_status': status,'area': area,
+                                              'order_by':'age','ordering':'descending','page_number':page_num,'page_size':100})
+            if(page_num==1):
+                nresults=search.result_count
+                npages=np.ceil(nresults/100)
+            for result in search.listing:
+                result_dict=OrderedDict((key,result[key]) for key in column_list)
+                data2.append(pd.DataFrame(result_dict,index=[0]))
+            if(page_num>=npages):
+                break
+            else:
+                page_num+=1
 data2=pd.concat(data2)
 col_list=['Listing ID','Listing Status']
 data2.rename(columns=dict(zip(data2.columns,col_list)),inplace=True)
@@ -90,7 +100,7 @@ plot_data = [
             size=9,
             color=cm[i]
         ),
-        text=list(split_data[i]['Description text']),
+        hovertext=list(split_data[i]['Description text']),
         name=legend[i],
         showlegend=True
     ) for i in range(len(split_data)-1,-1,-1)
